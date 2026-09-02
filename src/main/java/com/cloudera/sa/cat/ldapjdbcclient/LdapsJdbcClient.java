@@ -1,110 +1,95 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.cloudera.sa.cat.ldapjdbcclient;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 
-/**
- *
- * @author vsingh
- */
-public class LdapsJdbcClient {
+/** Minimal Impala JDBC client configured from a classpath properties file. */
+public final class LdapsJdbcClient {
 
-    private static final String CONNECTION_URL_PROPERTY = "connection.url";
-	private static final String JDBC_DRIVER_NAME_PROPERTY = "jdbc.driver.class.name";
-        private static final String CONNECTION_USERNAME = "connection.username";
-        private static final String CONNECTION_PASSWORD = "connection.password";
-        private static final String CONNECTION_QUERY = "connection.query";
-        private static final String CONNECTION_TRUSTSTORE_FILE = "connection.truststore.jks.file";
-        private static final String CONNECTION_TRUSTSTORE_PASSWORD = "connection.truststore.jks.password";
+    static final String CONNECTION_URL_PROPERTY = "connection.url";
+    static final String JDBC_DRIVER_NAME_PROPERTY = "jdbc.driver.class.name";
+    static final String CONNECTION_USERNAME = "connection.username";
+    static final String CONNECTION_PASSWORD = "connection.password";
+    static final String CONNECTION_QUERY = "connection.query";
+    static final String CONNECTION_TRUSTSTORE_FILE = "connection.truststore.jks.file";
+    static final String CONNECTION_TRUSTSTORE_PASSWORD = "connection.truststore.jks.password";
 
-	private static String connectionUrl;
-        private static String userName;
-        private static String passWord;
-	private static String jdbcDriverName;
-        private static String userQuery;
-        private static String trustStoreFile;
-        private static String trustStorePwd;
+    private static final List<String> REQUIRED_PROPERTIES = Arrays.asList(
+            CONNECTION_URL_PROPERTY,
+            JDBC_DRIVER_NAME_PROPERTY,
+            CONNECTION_USERNAME,
+            CONNECTION_PASSWORD,
+            CONNECTION_QUERY,
+            CONNECTION_TRUSTSTORE_FILE,
+            CONNECTION_TRUSTSTORE_PASSWORD);
 
-        private static void loadConfiguration() throws IOException {
-                InputStream input = null;
-                try {
-                        String filename = LdapsJdbcClient.class.getSimpleName() + ".conf.properties";
-                        input = LdapsJdbcClient.class.getClassLoader().getResourceAsStream(filename);
-                        Properties prop = new Properties();
-                        prop.load(input);
-        
-                        connectionUrl = prop.getProperty(CONNECTION_URL_PROPERTY);
-                        jdbcDriverName = prop.getProperty(JDBC_DRIVER_NAME_PROPERTY);
-                        userName = prop.getProperty(CONNECTION_USERNAME);
-                        passWord = prop.getProperty(CONNECTION_PASSWORD);
-                        userQuery = prop.getProperty(CONNECTION_QUERY);
-                        trustStoreFile = prop.getProperty(CONNECTION_TRUSTSTORE_FILE);
-                        trustStorePwd = prop.getProperty(CONNECTION_TRUSTSTORE_PASSWORD);
-                } finally {
-                        try {
-                                if (input != null)
-                                        input.close();
-                        } catch (IOException e) {
-                                // nothing to do
-                        }
-                }
+    private LdapsJdbcClient() {
+    }
+
+    static Properties loadConfiguration(InputStream input) throws IOException {
+        if (input == null) {
+            throw new IOException("LdapsJdbcClient.conf.properties was not found on the classpath");
         }
 
-	public static void main(String[] args) throws IOException {
+        Properties properties = new Properties();
+        try (InputStream configuration = input) {
+            properties.load(configuration);
+        }
+        for (String key : REQUIRED_PROPERTIES) {
+            requireProperty(properties, key);
+        }
+        return properties;
+    }
 
-                
-                loadConfiguration();
+    static void run(Properties properties, PrintStream output)
+            throws ClassNotFoundException, SQLException {
+        String connectionUrl = requireProperty(properties, CONNECTION_URL_PROPERTY);
+        String driverName = requireProperty(properties, JDBC_DRIVER_NAME_PROPERTY);
+        String username = requireProperty(properties, CONNECTION_USERNAME);
+        String password = requireProperty(properties, CONNECTION_PASSWORD);
+        String query = requireProperty(properties, CONNECTION_QUERY);
+        String trustStore = requireProperty(properties, CONNECTION_TRUSTSTORE_FILE);
+        String trustStorePassword = requireProperty(properties, CONNECTION_TRUSTSTORE_PASSWORD);
 
-                System.setProperty("javax.net.ssl.trustStore", trustStoreFile);
-                System.setProperty("javax.net.ssl.trustStorePassword", trustStorePwd);
-                String sqlStatement = userQuery;
+        System.setProperty("javax.net.ssl.trustStore", trustStore);
+        System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword);
+        Class.forName(driverName);
 
-		System.out.println("\n=============================================");
-		System.out.println("Cloudera Impala LDAP JDBC:");
-		System.out.println("Using Connection URL: " + connectionUrl);
-		System.out.println("Running Query: " + sqlStatement);
-		Connection con = null;
+        output.println("=============================================");
+        output.println("Cloudera Impala LDAP JDBC");
+        output.println("Running configured query");
 
-		try {
+        try (Connection connection = DriverManager.getConnection(connectionUrl, username, password);
+             Statement statement = connection.createStatement();
+             ResultSet results = statement.executeQuery(query)) {
+            output.println("== Begin Query Results ======================");
+            while (results.next()) {
+                output.println(results.getString(1));
+            }
+            output.println("== End Query Results ========================");
+        }
+    }
 
-			Class.forName(jdbcDriverName);
+    private static String requireProperty(Properties properties, String key) {
+        String value = properties.getProperty(key);
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing required configuration property: " + key);
+        }
+        return value.trim();
+    }
 
-			con = DriverManager.getConnection(connectionUrl,userName, passWord);
-
-			Statement stmt = con.createStatement();
-
-			ResultSet rs = stmt.executeQuery(sqlStatement);
-
-			System.out.println("\n== Begin Query Results ======================");
-
-			// print the results to the console
-			while (rs.next()) {
-				// the example query returns one String column
-				System.out.println(rs.getString(1));
-			}
-
-			System.out.println("== End Query Results =======================\n\n");
-
-		} catch (SQLException | ClassNotFoundException e) {
-			e.printStackTrace();
-		} finally {
-			try {
-				con.close();
-			} catch (Exception e) {
-				// swallow
-			}
-		}
-	}
-    
+    public static void main(String[] args) throws IOException, ClassNotFoundException, SQLException {
+        String filename = LdapsJdbcClient.class.getSimpleName() + ".conf.properties";
+        InputStream input = LdapsJdbcClient.class.getClassLoader().getResourceAsStream(filename);
+        run(loadConfiguration(input), System.out);
+    }
 }
