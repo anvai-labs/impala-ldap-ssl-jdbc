@@ -11,14 +11,13 @@
     <name>impala-ldap-ssl-jdbc</name>
 
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <junit.version>5.11.4</junit.version>
-        <jacoco.version>0.8.12</jacoco.version>
-        <maven.compiler.version>3.13.0</maven.compiler.version>
-        <maven.surefire.version>3.5.2</maven.surefire.version>
+        <junit.version>6.1.0</junit.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <maven.compiler.version>3.15.0</maven.compiler.version>
+        <maven.surefire.version>3.5.5</maven.surefire.version>
     </properties>
 
     <!-- The configured JDBC driver is loaded by class name at runtime. Users
@@ -72,7 +71,12 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.75</minimum>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
