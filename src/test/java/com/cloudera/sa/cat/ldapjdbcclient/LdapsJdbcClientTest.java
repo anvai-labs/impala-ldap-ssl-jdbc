@@ -28,11 +28,6 @@ class LdapsJdbcClientTest {
   @TempDir Path temporaryDirectory;
 
   @Test
-  void ownerPrivateCiNegativeProof() {
-    assertTrue(false, "deliberate fail-closed routing proof");
-  }
-
-  @Test
   void loadsOnlyAnExplicitReadableConfiguration() throws IOException {
     Path file = temporaryDirectory.resolve("impala.properties");
     Files.writeString(
